@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Map API와 날씨 정보</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANEODhUcpdCG8pStZRxlhU9SuzELykNuk&libraries=places" defer></script>
+</head>
+<body>
+    <div>
+        <label for="location">위치:</label>
+        <input type="text" id="location" placeholder="위치를 입력하세요">
+        <button onclick="searchLocation()">검색</button>
+    </div></br></br></br>
+    <div id="map" style="height: 800px; width: 100%;"></div>
+    <script src = "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script>
+        var map;
+        var infoWindow;
+        var marker; // 마커 변수를 밖으로 이동
+
+        var openWeatherApiKey = '9621802d90e86da79fb795232db24b6b';
+        var airVisualApiKey = '2d59911b-547a-4f59-a735-5cbdd51a20f7';
+        var airVisualApiUrl = 'http://api.airvisual.com/v2/nearest_city';
+        
+        function initMap() {
+            var initialCenter = {lat: 35.1796, lng: 129.0756};
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: initialCenter,
+                zoom: 12
+            });
+            infoWindow = new google.maps.InfoWindow();
+        }
+
+        // 페이지 로딩 시 initMap 함수 호출
+        document.addEventListener('DOMContentLoaded', function () {
+            initMap();
+        });
+
+        function searchLocation() {
+            var location = document.getElementById('location').value;
+
+            // Google Places API를 사용하여 위치 세부 정보 가져오기
+            var placesService = new google.maps.places.PlacesService(map);
+            placesService.textSearch({query: location}, function(results, status) {
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    var place = results[0];
+                    showLocation(place);
+                } else {
+                    alert('위치를 찾을 수 없습니다');
+                }
+            });
+        }
+
+        function showLocation(place) {
+            map.setCenter(place.geometry.location);
+            map.setZoom(12);
+
+            // 이전 마커가 있으면 삭제
+            if (marker) {
+                marker.setMap(null);
+            }
+
+            // 선택한 위치에 대한 마커 생성
+            marker = new google.maps.Marker({
+                map: map,
+                position: place.geometry.location,
+                title: place.name
+            });
+
+            // 마커에 대한 클릭 이벤트 리스너 추가
+            marker.addListener('click', function() {
+                // OpenWeatherMap API에서 날씨 정보 가져오기
+                fetchWeatherInfo(place.geometry.location.lat(), place.geometry.location.lng());
+            });
+        }
+
+        function fetchWeatherInfo(lat, lng) {
+            // OpenWeatherMap API에서 날씨 정보 가져오기
+            var openWeatherMapUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${openWeatherApiKey}&units=metric&lang=kr`;
+
+            fetch(openWeatherMapUrl)
+                .then(response => response.json())
+                .then(data => {
+                    // AirVisual API에서 대기질 정보 가져오기
+                    var airVisual = `${airVisualApiUrl}?lat=${lat}&lon=${lng}&key=${airVisualApiKey}`;
+
+                    fetch(airVisual)
+                        .then(response => response.json())
+                        .then(airVisualData => {
+                            // 정보를 인포윈도우에 표시
+                            var content = `<div><b>온도:</b> ${data.main.temp}°C</div>`;
+                            content += `<div><b>날씨:</b> ${data.weather[0].description}</div>`;
+                            content += `<div><b>미세먼지 농도:</b> ${airVisualData.data.current.pollution.aqius} µg/m³</div>`
+                            content += '<div><b>날짜 : </b>'  + moment().format('YYYY-MM-DD') + '</div>';
+                            content += '<div><b>천식걸릴 확률 : ' +  +'</div>';
+                            
+                            infoWindow.setContent(content);
+                            infoWindow.open(map, marker);
+                        })
+                        .catch(error => console.error('대기질 정보를 가져오는 중 오류 발생:', error));
+                })
+                .catch(error => console.error('날씨 정보를 가져오는 중 오류 발생:', error));
+        }
+    </script>
+</body>
+</html>
